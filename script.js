@@ -75,26 +75,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderEquityCurve(data) {
         const ctx = document.getElementById('equity-chart').getContext('2d');
+        // 我們需要按時間排序的資金數據，processData 已經對整個數據集進行了排序
         const equityData = data.filter(d => d.dataType === 'Equity');
 
-        // 匯總所有系統的資金
-        const aggregatedEquity = {};
+        if (equityData.length === 0) {
+            if (equityChart) equityChart.destroy();
+            // 如果需要，可以在畫布上顯示一條訊息
+            return;
+        }
+
+        // 按確切的時間戳對更新進行分組
+        const equityByTime = {};
         equityData.forEach(d => {
             const timeKey = d.timestamp.toISOString();
-            if (!aggregatedEquity[timeKey]) {
-                aggregatedEquity[timeKey] = { total: 0, systems: {} };
+            if (!equityByTime[timeKey]) {
+                equityByTime[timeKey] = [];
             }
-            // 確保同一個系統在同一個時間點只被記錄一次
-            aggregatedEquity[timeKey].systems[d.systemId] = parseFloat(d.value);
+            equityByTime[timeKey].push({ systemId: d.systemId, value: parseFloat(d.value) || 0 });
         });
 
-        // 重新計算每個時間點的總資金
-        Object.keys(aggregatedEquity).forEach(timeKey => {
-            aggregatedEquity[timeKey].total = Object.values(aggregatedEquity[timeKey].systems).reduce((sum, val) => sum + val, 0);
-        });
+        const sortedTimeKeys = Object.keys(equityByTime).sort();
         
-        const sortedLabels = Object.keys(aggregatedEquity).sort();
-        const chartData = sortedLabels.map(label => aggregatedEquity[label].total);
+        const chartLabels = [];
+        const chartDataPoints = [];
+        const latestEquityPerSystem = {};
+        // 將所有系統的初始資金設為 0
+        [...new Set(equityData.map(d => d.systemId))].forEach(id => {
+            latestEquityPerSystem[id] = 0;
+        });
+
+        // 按時間順序處理每個時間點
+        sortedTimeKeys.forEach(timeKey => {
+            // 應用此時間戳的所有更新
+            equityByTime[timeKey].forEach(update => {
+                latestEquityPerSystem[update.systemId] = update.value;
+            });
+
+            // 更新後，通過加總所有系統的最新資金來計算新的總額
+            const totalEquity = Object.values(latestEquityPerSystem).reduce((sum, val) => sum + val, 0);
+
+            chartLabels.push(new Date(timeKey));
+            chartDataPoints.push(totalEquity);
+        });
 
         if (equityChart) {
             equityChart.destroy(); // 如果圖表已存在，先銷毀再重畫
@@ -103,10 +125,10 @@ document.addEventListener('DOMContentLoaded', () => {
         equityChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: sortedLabels.map(l => new Date(l).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })),
+                labels: chartLabels.map(l => l.toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })),
                 datasets: [{
                     label: '總資金曲線',
-                    data: chartData,
+                    data: chartDataPoints,
                     borderColor: '#4a90e2',
                     backgroundColor: 'rgba(74, 144, 226, 0.2)',
                     fill: true,
@@ -117,7 +139,10 @@ document.addEventListener('DOMContentLoaded', () => {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: { x: { ticks: { color: '#e0e0e0' } }, y: { ticks: { color: '#e0e0e0' } } },
+                scales: {
+                    x: { ticks: { color: '#e0e0e0', autoSkip: true, maxTicksLimit: 20 } },
+                    y: { ticks: { color: '#e0e0e0' } }
+                },
                 plugins: { legend: { labels: { color: '#e0e0e0' } } }
             }
         });
