@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自動化交易監控儀表板</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- 引入 Chart.js 函式庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <h1>自動化交易監控儀表板</h1>
+        <div id="last-updated">上次更新: --</div>
+    </header>
+
+    <main>
+        <section id="system-status-section" class="card">
+            <h2>系統狀態</h2>
+            <div id="system-status-container">
+                <!-- 系統狀態將由 JavaScript 動態生成 -->
+                <p>載入中...</p>
+            </div>
+        </section>
+
+        <section id="equity-curve-section" class="card">
+            <h2>整體資金曲線</h2>
+            <canvas id="equity-chart"></canvas>
+        </section>
+
+        <section id="positions-section" class="card">
+            <h2>目前持倉</h2>
+            <table id="positions-table">
+                <thead>
+                    <tr>
+                        <th>系統</th>
+                        <th>商品</th>
+                        <th>數量/方向</th>
+                        <th>開倉價格</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- 持倉資料將由 JavaScript 動態生成 -->
+                </tbody>
+            </table>
+        </section>
+        
+        <section id="signals-section" class="card">
+            <h2>最新信號</h2>
+            <ul id="signals-list">
+                <!-- 最新信號將由 JavaScript 動態生成 -->
+            </ul>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
