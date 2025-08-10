@@ -32,6 +32,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const regex = /(?:"([^"]*(?:""[^"]*)*)"|([^,]*))(?:,|$)/g;
             let match;
             while ((match = regex.exec(row)) !== null) {
+                // 防止因結尾逗號造成的無限迴圈
+                if (match[0].length === 0) {
+                    break;
+                }
                 // 如果值是帶引號的，match[1] 會是它。否則，是 match[2]。
                 // 帶引號的欄位值需要將其雙引號替換為單引號。
                 const value = match[1] !== undefined ? match[1].replace(/""/g, '"') : match[2];
