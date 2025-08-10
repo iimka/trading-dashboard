@@ -24,18 +24,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function processData(csvText) {
-        const rows = csvText.trim().split('\n').slice(1); // 分割成行並跳過標題
+        // 這個基於正規表示式的解析器比 split(',') 更可靠
+        // 它可以處理帶引號的欄位，這些欄位中可能包含逗號
+        const parseCsvRow = (row) => {
+            const columns = [];
+            // 用於尋找逗號分隔值的 Regex，允許引號內的字串
+            const regex = /(?:"([^"]*(?:""[^"]*)*)"|([^,]*))(?:,|$)/g;
+            let match;
+            while ((match = regex.exec(row)) !== null) {
+                // 如果值是帶引號的，match[1] 會是它。否則，是 match[2]。
+                // 帶引號的欄位值需要將其雙引號替換為單引號。
+                const value = match[1] !== undefined ? match[1].replace(/""/g, '"') : match[2];
+                columns.push(value);
+            }
+            return columns;
+        };
+
+        const rows = csvText.trim().split('\n').slice(1); // 獲取除了標題之外的所有行
         const data = rows.map(row => {
-            // 簡單的 CSV 解析，對於包含逗號的欄位可能不夠穩健
-            const columns = row.split(',');
+            if (!row.trim()) return null; // 跳過空行
+            const columns = parseCsvRow(row);
+            if (columns.length < 4) return null; // 確保行具有最少的必要欄位
             return {
                 timestamp: new Date(columns[0]),
                 systemId: columns[1],
                 dataType: columns[2],
-                value: columns[3],
+                value: columns[3].replace(/,/g, ''), // 在解析前移除數字中的逗號
                 details: columns.slice(4).join(',').trim() // 合併剩餘部分作為 details
             };
-        }).filter(d => d.systemId && d.timestamp instanceof Date && !isNaN(d.timestamp)); // 過濾掉無效行
+        }).filter(d => d && d.systemId && d.timestamp instanceof Date && !isNaN(d.timestamp)); // 過濾掉無效行
 
         // 根據時間戳排序，確保資料是按時間順序處理的
         data.sort((a, b) => a.timestamp - b.timestamp);
