@@ -112,7 +112,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!equityByTime[timeKey]) {
                 equityByTime[timeKey] = [];
             }
-            equityByTime[timeKey].push({ systemId: d.systemId, value: parseFloat(d.value) || 0 });
+            // 延後解析，先將原始值存入，以利後續進行更嚴格的檢查
+            equityByTime[timeKey].push({ systemId: d.systemId, value: d.value });
         });
 
         const sortedTimeKeys = Object.keys(equityByTime).sort();
@@ -120,16 +121,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const chartLabels = [];
         const chartDataPoints = [];
         const latestEquityPerSystem = {};
-        // 將所有系統的初始資金設為 0
+        // 取得所有不重複的系統 ID，並將其初始資金設為 0
         [...new Set(equityData.map(d => d.systemId))].forEach(id => {
             latestEquityPerSystem[id] = 0;
         });
 
         // 按時間順序處理每個時間點
         sortedTimeKeys.forEach(timeKey => {
-            // 應用此時間戳的所有更新
+            // 應用此時間戳的所有更新，並進行有效性檢查
             equityByTime[timeKey].forEach(update => {
-                latestEquityPerSystem[update.systemId] = update.value;
+                const parsedValue = parseFloat(update.value);
+                // 只有當解析出的值是有效的、有限的數字時，才更新該系統的資金
+                // 這可以防止空值或文字覆蓋掉最後的正確數值
+                if (isFinite(parsedValue)) {
+                    latestEquityPerSystem[update.systemId] = parsedValue;
+                }
             });
 
             // 更新後，通過加總所有系統的最新資金來計算新的總額
