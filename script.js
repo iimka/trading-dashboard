@@ -6,7 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchData() {
         // 防止瀏覽器快取舊的 CSV 檔案
-        const urlWithCacheBuster = `${GOOGLE_SHEET_URL}?t=${new Date().getTime()}`;
+        // 判斷網址中是否已有查詢參數，來決定是用 '?' 還是 '&'
+        const separator = GOOGLE_SHEET_URL.includes('?') ? '&' : '?';
+        const urlWithCacheBuster = `${GOOGLE_SHEET_URL}${separator}t=${new Date().getTime()}`;
         try {
             const response = await fetch(urlWithCacheBuster);
             if (!response.ok) {
