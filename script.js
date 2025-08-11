@@ -5,25 +5,40 @@ document.addEventListener('DOMContentLoaded', () => {
     let equityChart = null; // 用來存放圖表實例
 
     async function fetchData() {
+        const statusDiv = document.getElementById('last-updated');
+        const controller = new AbortController();
+        // 設定 15 秒的超時
+        const timeoutId = setTimeout(() => {
+            controller.abort();
+            console.log('Fetch request timed out.');
+        }, 15000);
+
         // 防止瀏覽器快取舊的 CSV 檔案
         // 判斷網址中是否已有查詢參數，來決定是用 '?' 還是 '&'
         const separator = GOOGLE_SHEET_URL.includes('?') ? '&' : '?';
         const urlWithCacheBuster = `${GOOGLE_SHEET_URL}${separator}t=${new Date().getTime()}`;
         try {
-            const response = await fetch(urlWithCacheBuster);
+            statusDiv.textContent = '正在從 Google Sheet 載入資料...';
+            const response = await fetch(urlWithCacheBuster, { signal: controller.signal });
+            clearTimeout(timeoutId); // 成功取得回應，清除超時
+
             if (!response.ok) {
                 throw new Error(`網路回應錯誤: ${response.statusText}`);
             }
+            statusDiv.textContent = '資料下載完成，正在處理...';
             const csvText = await response.text();
             processData(csvText);
-            document.getElementById('last-updated').textContent = `上次更新: ${new Date().toLocaleString('zh-TW')}`;
+            statusDiv.textContent = `上次更新: ${new Date().toLocaleString('zh-TW')}`;
         } catch (error) {
+            clearTimeout(timeoutId); // 發生錯誤，也清除超時
             console.error('無法獲取或處理資料:', error);
             let errorMessage = error.message;
-            if (error instanceof TypeError && error.message.toLowerCase().includes('failed to fetch')) {
+            if (error.name === 'AbortError') {
+                errorMessage = '請求超時 (15秒)。請檢查您的網路連線或確認 Google Sheet 檔案不會太大。';
+            } else if (error instanceof TypeError && error.message.toLowerCase().includes('failed to fetch')) {
                 errorMessage = '請求失敗。這通常是 CORS 跨域問題。請確認您是透過本地伺服器 (如 `python -m http.server`) 訪問此頁面，而不是直接打開 HTML 檔案。';
             }
-            document.getElementById('last-updated').textContent = `更新失敗: ${errorMessage}`;
+            statusDiv.textContent = `更新失敗: ${errorMessage}`;
         }
     }
 
@@ -65,6 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 根據時間戳排序，確保資料是按時間順序處理的
         data.sort((a, b) => a.timestamp - b.timestamp);
 
+        document.getElementById('last-updated').textContent = '資料處理完成，正在渲染畫面...';
         renderStatus(data);
         renderEquityCurve(data);
         renderPositions(data);
