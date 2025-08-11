@@ -19,7 +19,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('last-updated').textContent = `上次更新: ${new Date().toLocaleString('zh-TW')}`;
         } catch (error) {
             console.error('無法獲取或處理資料:', error);
-            document.getElementById('last-updated').textContent = `更新失敗: ${error.message}`;
+            let errorMessage = error.message;
+            if (error instanceof TypeError && error.message.toLowerCase().includes('failed to fetch')) {
+                errorMessage = '請求失敗。這通常是 CORS 跨域問題。請確認您是透過本地伺服器 (如 `python -m http.server`) 訪問此頁面，而不是直接打開 HTML 檔案。';
+            }
+            document.getElementById('last-updated').textContent = `更新失敗: ${errorMessage}`;
         }
     }
 
