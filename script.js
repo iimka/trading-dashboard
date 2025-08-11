@@ -2,11 +2,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // *** 請將 YOUR_PUBLISHED_CSV_URL 替換成你從 Google Sheet 取得的 CSV 發佈連結 *** #tset
     const ORIGINAL_GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR6cxFMgFZPD5pJ8mkN28C-avK0-QpkZZa4c-m0x8SiS8dxP52Ukx7D0vfxZ9BN8tnc05jKY12frsSq/pub?gid=297705262&single=true&output=csv';
 
-    // 我們使用 CORS 代理來解決 Google Sheets 的重新導向問題。
-    // Google 會將請求重新導向到 googleusercontent.com，這會觸發瀏覽器的跨域安全限制。
-    // 代理伺服器會代為請求並將結果直接回傳，從而繞過此問題。
-    const GOOGLE_SHEET_URL = `https://api.allorigins.win/raw?url=${encodeURIComponent(ORIGINAL_GOOGLE_SHEET_URL)}`;
-    
+    // CORS 代理的前綴
+    const CORS_PROXY_PREFIX = 'https://api.allorigins.win/raw?url=';
+
     let equityChart = null; // 用來存放圖表實例
 
     async function fetchData() {
@@ -18,13 +16,14 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Fetch request timed out.');
         }, 15000);
 
-        // 防止瀏覽器快取舊的 CSV 檔案
-        // 判斷網址中是否已有查詢參數，來決定是用 '?' 還是 '&'
-        const separator = GOOGLE_SHEET_URL.includes('?') ? '&' : '?';
-        const urlWithCacheBuster = `${GOOGLE_SHEET_URL}${separator}t=${new Date().getTime()}`;
+        // 為了防止快取，我們將時間戳加到原始 Google Sheet URL 上，然後再用代理包裝
+        const separator = ORIGINAL_GOOGLE_SHEET_URL.includes('?') ? '&' : '?';
+        const urlWithCacheBuster = `${ORIGINAL_GOOGLE_SHEET_URL}${separator}t=${new Date().getTime()}`;
+        const finalUrl = `${CORS_PROXY_PREFIX}${encodeURIComponent(urlWithCacheBuster)}`;
+
         try {
             statusDiv.textContent = '正在從 Google Sheet 載入資料...';
-            const response = await fetch(urlWithCacheBuster, { signal: controller.signal });
+            const response = await fetch(finalUrl, { signal: controller.signal });
             clearTimeout(timeoutId); // 成功取得回應，清除超時
 
             if (!response.ok) {
@@ -73,11 +72,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!row.trim()) return null; // 跳過空行
             const columns = parseCsvRow(row);
             if (columns.length < 4) return null; // 確保行具有最少的必要欄位
+
+            const dataType = columns[2] ? columns[2].trim() : '';
+            let value = columns[3] ? columns[3].trim() : '';
+
+            // 針對 Equity 和 Position 類型，進行更嚴格的數值清理
+            // 這會移除數字中的逗號，以及尾隨的非數字字元 (例如意外的引號)
+            if (dataType === 'Equity' || dataType === 'Position') {
+                value = value.replace(/,/g, '').replace(/[^\d.-].*$/, '');
+            }
+
             return {
-                timestamp: new Date(columns[0]),
-                systemId: columns[1],
-                dataType: columns[2],
-                value: columns[3].replace(/,/g, ''), // 在解析前移除數字中的逗號
+                timestamp: new Date(columns[0] ? columns[0].trim() : null),
+                systemId: columns[1] ? columns[1].trim() : 'Unknown',
+                dataType: dataType,
+                value: value,
                 details: columns.slice(4).join(',').trim() // 合併剩餘部分作為 details
             };
         }).filter(d => d && d.systemId && d.timestamp instanceof Date && !isNaN(d.timestamp)); // 過濾掉無效行
@@ -211,7 +220,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         positionsTbody.innerHTML = '';
         Object.values(latestPositions).forEach(pos => {
-            if (parseFloat(pos.value) !== 0) { // 只顯示還有持倉的部位
+            const positionValue = parseFloat(pos.value);
+            if (isFinite(positionValue) && positionValue !== 0) { // 只顯示還有持倉的部位，並確保值是有效數字
                 const row = positionsTbody.insertRow();
                 const detailsParts = pos.details.split(',').map(p => p.trim());
                 const symbol = detailsParts.find(p => p.toLowerCase().startsWith('symbol:'))?.split(':')[1] || 'N/A';
