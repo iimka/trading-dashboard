@@ -78,8 +78,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 針對 Equity 和 Position 類型，進行更嚴格的數值清理
             // 這會移除數字中的逗號，以及尾隨的非數字字元 (例如意外的引號)
+            // 更新：採用更穩健的數字提取方法
             if (dataType === 'Equity' || dataType === 'Position') {
-                value = value.replace(/,/g, '').replace(/[^\d.-].*$/, '');
+                // 1. 移除千分位逗號
+                const valueWithoutCommas = value.replace(/,/g, '');
+                // 2. 從字串開頭提取一個有效的數字 (整數或小數)
+                const numericMatch = valueWithoutCommas.match(/^-?\d+(\.\d+)?/);
+                // 3. 如果成功匹配，就使用匹配到的數字，否則視為空字串，以利後續的 isFinite 檢查
+                value = numericMatch ? numericMatch[0] : '';
             }
 
             return {
@@ -174,6 +180,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 更新後，通過加總所有系統的最新資金來計算新的總額
             const totalEquity = Object.values(latestEquityPerSystem).reduce((sum, val) => sum + val, 0);
+
+            // --- 偵錯日誌 START ---
+            // 為了追蹤資金曲線問題，我們印出每個時間點的計算結果。
+            // 如果圖表恢復正常，您可以安全地刪除或註解掉下面這行 console.log。
+            console.log(`Time: ${timeKey}, Systems: ${JSON.stringify(latestEquityPerSystem)}, Total Equity: ${totalEquity}`);
+            // --- 偵錯日誌 END ---
 
             chartLabels.push(new Date(timeKey));
             chartDataPoints.push(totalEquity);
