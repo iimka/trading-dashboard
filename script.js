@@ -228,7 +228,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 plugins: { 
                     legend: { labels: { color: '#e0e0e0' } },
-                    tooltip: { mode: 'index', intersect: false }
+                    tooltip: { 
+                        mode: 'index', 
+                        intersect: false,
+                        callbacks: {
+                            // Customizing the label for each item in the tooltip
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    let total = 0;
+                                    context.chart.data.datasets.forEach(function(dataset) {
+                                        const value = dataset.data[context.dataIndex];
+                                        if (typeof value === 'number') { total += value; }
+                                    });
+                                    const value = context.parsed.y;
+                                    const percentage = (total > 0) ? (value / total * 100).toFixed(2) : 0;
+                                    label += value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ` (${percentage}%)`;
+                                }
+                                return label;
+                            },
+                            // Adding a footer to the tooltip to show the total
+                            footer: function(tooltipItems) {
+                                let sum = 0;
+                                tooltipItems.forEach(function(tooltipItem) { sum += tooltipItem.raw; });
+                                return '總資金: ' + sum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            }
+                        }
+                    }
                 },
                 interaction: { mode: 'index', intersect: false }
             }
