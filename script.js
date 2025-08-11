@@ -1,7 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
     // *** 請將 YOUR_PUBLISHED_CSV_URL 替換成你從 Google Sheet 取得的 CSV 發佈連結 *** #tset
-    const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR6cxFMgFZPD5pJ8mkN28C-avK0-QpkZZa4c-m0x8SiS8dxP52Ukx7D0vfxZ9BN8tnc05jKY12frsSq/pub?gid=297705262&single=true&output=csv';
+    const ORIGINAL_GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR6cxFMgFZPD5pJ8mkN28C-avK0-QpkZZa4c-m0x8SiS8dxP52Ukx7D0vfxZ9BN8tnc05jKY12frsSq/pub?gid=297705262&single=true&output=csv';
 
+    // 我們使用 CORS 代理來解決 Google Sheets 的重新導向問題。
+    // Google 會將請求重新導向到 googleusercontent.com，這會觸發瀏覽器的跨域安全限制。
+    // 代理伺服器會代為請求並將結果直接回傳，從而繞過此問題。
+    const GOOGLE_SHEET_URL = `https://api.allorigins.win/raw?url=${encodeURIComponent(ORIGINAL_GOOGLE_SHEET_URL)}`;
+    
     let equityChart = null; // 用來存放圖表實例
 
     async function fetchData() {
