@@ -25,7 +25,10 @@
 
         <section id="equity-curve-section" class="card">
             <h2>整體資金曲線</h2>
-            <canvas id="equity-chart"></canvas>
+            <div id="equity-chart-container" style="position: relative; height: 300px;">
+                <canvas id="equity-chart"></canvas>
+            </div>
+            <div id="equity-chart-message" style="display: none; text-align: center; padding: 20px;"></div>
         </section>
 
         <section id="positions-section" class="card">

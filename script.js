@@ -135,88 +135,102 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderEquityCurve(data) {
+        const chartContainer = document.getElementById('equity-chart-container');
+        const messageDiv = document.getElementById('equity-chart-message');
         const ctx = document.getElementById('equity-chart').getContext('2d');
-        // 我們需要按時間排序的資金數據，processData 已經對整個數據集進行了排序
         const equityData = data.filter(d => d.dataType === 'Equity');
-
+    
+        if (equityChart) {
+            equityChart.destroy();
+            equityChart = null;
+        }
+    
         if (equityData.length === 0) {
-            if (equityChart) equityChart.destroy();
-            // 如果需要，可以在畫布上顯示一條訊息
+            chartContainer.style.display = 'none';
+            messageDiv.style.display = 'block';
+            messageDiv.textContent = '尚無資金數據可供顯示。';
             return;
         }
-
-        // 按確切的時間戳對更新進行分組
-        const equityByTime = {};
-        equityData.forEach(d => {
-            const timeKey = d.timestamp.toISOString();
-            if (!equityByTime[timeKey]) {
-                equityByTime[timeKey] = [];
-            }
-            // 延後解析，先將原始值存入，以利後續進行更嚴格的檢查
-            equityByTime[timeKey].push({ systemId: d.systemId, value: d.value });
-        });
-
-        const sortedTimeKeys = Object.keys(equityByTime).sort();
-        
-        const chartLabels = [];
-        const chartDataPoints = [];
+    
+        chartContainer.style.display = 'block';
+        messageDiv.style.display = 'none';
+    
+        const systemIds = [...new Set(equityData.map(d => d.systemId))].sort();
+        const timeKeys = [...new Set(equityData.map(d => d.timestamp.toISOString()))].sort();
+    
         const latestEquityPerSystem = {};
-        // 取得所有不重複的系統 ID，並將其初始資金設為 0
-        [...new Set(equityData.map(d => d.systemId))].forEach(id => {
-            latestEquityPerSystem[id] = 0;
+        systemIds.forEach(id => latestEquityPerSystem[id] = 0);
+    
+        const datasets = {};
+        systemIds.forEach(id => {
+            datasets[id] = {
+                label: id,
+                data: [],
+                fill: true,
+                tension: 0.1,
+                pointRadius: 0,
+            };
         });
-
-        // 按時間順序處理每個時間點
-        sortedTimeKeys.forEach(timeKey => {
-            // 應用此時間戳的所有更新，並進行有效性檢查
-            equityByTime[timeKey].forEach(update => {
+    
+        const chartLabels = [];
+    
+        timeKeys.forEach(timeKey => {
+            const updatesForThisTime = equityData.filter(d => d.timestamp.toISOString() === timeKey);
+            
+            updatesForThisTime.forEach(update => {
                 const parsedValue = parseFloat(update.value);
-                // 只有當解析出的值是有效的、有限的數字時，才更新該系統的資金
-                // 這可以防止空值或文字覆蓋掉最後的正確數值
                 if (isFinite(parsedValue)) {
                     latestEquityPerSystem[update.systemId] = parsedValue;
                 }
             });
-
-            // 更新後，通過加總所有系統的最新資金來計算新的總額
-            const totalEquity = Object.values(latestEquityPerSystem).reduce((sum, val) => sum + val, 0);
-
-            // --- 偵錯日誌 START ---
-            // 為了追蹤資金曲線問題，我們印出每個時間點的計算結果。
-            // 如果圖表恢復正常，您可以安全地刪除或註解掉下面這行 console.log。
-            console.log(`Time: ${timeKey}, Systems: ${JSON.stringify(latestEquityPerSystem)}, Total Equity: ${totalEquity}`);
-            // --- 偵錯日誌 END ---
-
+    
             chartLabels.push(new Date(timeKey));
-            chartDataPoints.push(totalEquity);
+            systemIds.forEach(id => {
+                datasets[id].data.push(latestEquityPerSystem[id]);
+            });
         });
-
-        if (equityChart) {
-            equityChart.destroy(); // 如果圖表已存在，先銷毀再重畫
-        }
-
+    
+        const colors = [
+            { border: '#4a90e2', bg: 'rgba(74, 144, 226, 0.2)' },
+            { border: '#50e3c2', bg: 'rgba(80, 227, 194, 0.2)' },
+            { border: '#f5a623', bg: 'rgba(245, 166, 35, 0.2)' },
+            { border: '#bd10e0', bg: 'rgba(189, 16, 224, 0.2)' },
+            { border: '#e01030', bg: 'rgba(224, 16, 48, 0.2)' },
+            { border: '#9013fe', bg: 'rgba(144, 19, 254, 0.2)' }
+        ];
+    
+        const finalDatasets = Object.values(datasets).map((ds, index) => {
+            const color = colors[index % colors.length];
+            ds.borderColor = color.border;
+            ds.backgroundColor = color.bg;
+            return ds;
+        });
+    
         equityChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: chartLabels.map(l => l.toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })),
-                datasets: [{
-                    label: '總資金曲線',
-                    data: chartDataPoints,
-                    borderColor: '#4a90e2',
-                    backgroundColor: 'rgba(74, 144, 226, 0.2)',
-                    fill: true,
-                    tension: 0.1,
-                    pointRadius: 0,
-                }]
+                datasets: finalDatasets
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    x: { ticks: { color: '#e0e0e0', autoSkip: true, maxTicksLimit: 20 } },
-                    y: { ticks: { color: '#e0e0e0' } }
+                    x: { 
+                        ticks: { color: '#e0e0e0', autoSkip: true, maxTicksLimit: 20 },
+                        grid: { color: 'rgba(224, 224, 224, 0.1)' }
+                    },
+                    y: { 
+                        ticks: { color: '#e0e0e0' },
+                        stacked: true,
+                        grid: { color: 'rgba(224, 224, 224, 0.1)' }
+                    }
                 },
-                plugins: { legend: { labels: { color: '#e0e0e0' } } }
+                plugins: { 
+                    legend: { labels: { color: '#e0e0e0' } },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                interaction: { mode: 'index', intersect: false }
             }
         });
     }
@@ -225,22 +239,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const positionsTbody = document.querySelector('#positions-table tbody');
         const latestPositions = {};
         data.filter(d => d.dataType === 'Position').forEach(d => {
-            // 假設 details 格式為 "Symbol:BTCUSDT,Entry:34000"
-            const symbol = d.details.split(',')[0].split(':')[1] || 'N/A';
-            latestPositions[`${d.systemId}-${symbol}`] = d;
-        });
-
-        positionsTbody.innerHTML = '';
-        Object.values(latestPositions).forEach(pos => {
-            const positionValue = parseFloat(pos.value);
-            if (isFinite(positionValue) && positionValue !== 0) { // 只顯示還有持倉的部位，並確保值是有效數字
-                const row = positionsTbody.insertRow();
-                const detailsParts = pos.details.split(',').map(p => p.trim());
-                const symbol = detailsParts.find(p => p.toLowerCase().startsWith('symbol:'))?.split(':')[1] || 'N/A';
-                const entry = detailsParts.find(p => p.toLowerCase().startsWith('entry:'))?.split(':')[1] || 'N/A';
-                
-                row.innerHTML = `<td>${pos.systemId}</td><td>${symbol}</td><td>${pos.value}</td><td>${entry}</td>`;
+            const detailsParts = d.details.split(',').map(p => p.trim());
+            const symbol = detailsParts.find(p => p.toLowerCase().startsWith('symbol:'))?.split(':')[1];
+            
+            if (symbol) {
+                latestPositions[`${d.systemId}-${symbol}`] = d;
             }
+        });
+    
+        positionsTbody.innerHTML = '';
+        const openPositions = Object.values(latestPositions).filter(pos => {
+            const positionValue = parseFloat(pos.value);
+            return isFinite(positionValue) && positionValue !== 0;
+        });
+    
+        if (openPositions.length === 0) {
+            positionsTbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">目前無持倉</td></tr>';
+            return;
+        }
+    
+        openPositions.forEach(pos => {
+            const row = positionsTbody.insertRow();
+            const detailsParts = pos.details.split(',').map(p => p.trim());
+            const symbol = detailsParts.find(p => p.toLowerCase().startsWith('symbol:'))?.split(':')[1] || 'N/A';
+            const entry = detailsParts.find(p => p.toLowerCase().startsWith('entry:'))?.split(':')[1] || 'N/A';
+            
+            row.innerHTML = `<td>${pos.systemId}</td><td>${symbol}</td><td>${pos.value}</td><td>${entry}</td>`;
         });
     }
 
